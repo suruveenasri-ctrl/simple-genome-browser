@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Genome Browser</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🧬 Simple Genome Browser</h1>
+    <p>Explore chromosomes, genes and genomic coordinates</p>
+  </header>
+
+  <main>
+    <section class="controls">
+      <label>Chromosome
+        <select id="chromosome">
+          <option value="1">Chromosome 1</option>
+          <option value="2">Chromosome 2</option>
+          <option value="X">Chromosome X</option>
+        </select>
+      </label>
+      <label>Search gene
+        <input id="geneSearch" type="text" placeholder="e.g. BRCA1">
+      </label>
+      <button id="searchBtn">Search</button>
+      <button id="resetBtn" class="secondary">Reset</button>
+    </section>
+
+    <section class="browser-card">
+      <div class="browser-title">
+        <strong id="regionTitle">Chromosome 1</strong>
+        <span id="regionText">1 – 250,000,000 bp</span>
+      </div>
+      <div class="ruler" id="ruler"></div>
+      <div class="track">
+        <div class="track-label">Genes</div>
+        <div class="gene-track" id="geneTrack"></div>
+      </div>
+      <div class="legend">
+        <span><i class="gene-forward"></i> Forward gene</span>
+        <span><i class="gene-reverse"></i> Reverse gene</span>
+      </div>
+    </section>
+
+    <section class="info-grid">
+      <div class="panel">
+        <h2>Selected feature</h2>
+        <div id="featureInfo">Click a gene on the genome track to see details.</div>
+      </div>
+      <div class="panel">
+        <h2>Genome data</h2>
+        <ul id="genomeStats"></ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Student project • S. Veena Sri & Vanshika</p>
+  </footer>
+  <script src="script.js"></script>
+</body>
+</html>
