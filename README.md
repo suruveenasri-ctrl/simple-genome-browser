@@ -38,7 +38,8 @@ Genome Explorer is an educational genome-browser web application for exploring c
 If your system uses python3, replace python with python3.
 
 ## Upload guidance
-- FASTA: .fa, .fasta, .fna or .faa
+- FASTA: .fa, .fasta, .fna or .faa. GC content is reported for nucleotide sequences; it is marked N/A for protein or mixed input.
+- Example test files are provided in the examples folder.
 - Annotation: .bed, .gff or .gff3
 - Maximum upload size: 5 MB
 - BED start coordinates are converted from zero-based to one-based for display.
