@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -110,6 +110,19 @@ def prepare_genes(genes, chromosome_length):
                      "width":max((end-start)/chromosome_length*100, 1.2)})
         prepared.append(item)
     return sorted(prepared, key=lambda item: item["start"])
+
+
+@app.route("/manifest.webmanifest")
+def manifest():
+    return send_from_directory("static", "manifest.webmanifest", mimetype="application/manifest+json")
+
+
+@app.route("/service-worker.js")
+def service_worker():
+    response = send_from_directory("static", "service-worker.js", mimetype="application/javascript")
+    response.headers["Service-Worker-Allowed"] = "/"
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.route("/", methods=["GET", "POST"])
