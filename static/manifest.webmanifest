@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Genome Explorer – Simple Genome Browser",
+  "short_name": "Genome Explorer",
+  "description": "Explore chromosome features and inspect FASTA, BED and GFF3 files.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f8f8",
+  "theme_color": "#103f46",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
