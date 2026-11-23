@@ -49,13 +49,16 @@ def parse_fasta(text):
 def calculate_sequence_stats(sequences):
     """Calculate sequence count, total length, GC percentage and ambiguous symbols."""
     combined = "".join(sequences.values()).upper()
-    valid_bases = sum(combined.count(base) for base in "ACGT")
+    nucleotide_symbols = set("ACGTUNRYKMSWBDHV")
+    is_nucleotide = all(base in nucleotide_symbols for base in combined)
+    valid_bases = sum(combined.count(base) for base in "ACGTU")
     gc_count = combined.count("G") + combined.count("C")
     return {
         "sequence_count": len(sequences),
         "total_bases": len(combined),
-        "gc_percent": round(gc_count / valid_bases * 100, 2) if valid_bases else 0,
-        "ambiguous_bases": sum(base not in "ACGT" for base in combined)
+        "sequence_type": "Nucleotide" if is_nucleotide else "Protein or mixed",
+        "gc_percent": round(gc_count / valid_bases * 100, 2) if is_nucleotide and valid_bases else None,
+        "ambiguous_bases": sum(base not in "ACGTU" for base in combined) if is_nucleotide else None
     }
 
 
