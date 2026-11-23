@@ -1,48 +1,40 @@
-# 🧬 Simple Genome Browser
+# Simple Genome Browser — Python / Flask
 
-A simple, beginner-friendly web-based genome browser created as a student project. It displays chromosome coordinates and example gene features in an interactive genome track.
+An educational genome browser built with a Python Flask backend.
 
-## 👩‍💻 Project Members
+## Project members
+- S. Veena Sri — SE25UMBT011
+- Vanshika — SE25UBIT066
 
-| Name | ID Number |
-|---|---|
-| **S. Veena Sri** | **SE25UMBT011** |
-| **Vanshika** | **SE25UBIT066** |
+## Technologies
+- Python 3 and Flask
+- HTML templates (Jinja)
+- CSS
 
-## ✨ Features
+## Features
+- Select chromosome 1, 2 or X
+- View chromosome length and gene positions
+- Search gene names and display coordinates/strand
+- Upload basic GFF3 or BED annotation files
+- Includes a Python FASTA parsing function
 
-- Select Chromosome 1, 2 or X
-- View chromosome length and genomic coordinates
-- Interactive gene/feature track
-- Forward and reverse strand visualization
-- Click a gene to view its details
-- Search for a displayed gene by name
-- Responsive layout for desktop and mobile
-- No external libraries required
+## Files
+- app.py — Python data dictionary, Flask route, search, and parsing functions
+- requirements.txt — Python dependency list
+- templates/index.html — page template displayed by Flask
+- static/style.css — page styling
 
-## 📁 Files
+## Run locally
+1. Install Python 3.
+2. Open a terminal in this folder.
+3. Run: python -m pip install -r requirements.txt
+4. Run: python app.py
+5. Open http://127.0.0.1:5000 in a browser.
 
-- `index.html` — main webpage structure
-- `style.css` — page and genome-track styling
-- `script.js` — genome data and interactive functionality
+On some computers, use python3 instead of python.
 
-## 🧬 Included Demo Data
+## Hosting note
+GitHub Pages only serves static files and cannot run a Python Flask server. This repository is now a Flask application. To publish a working live website, deploy it on a Python-compatible hosting service and configure it to install requirements.txt and start app.py.
 
-The browser contains a small educational dataset with chromosome lengths and example features, including BRCA1, TP53 and DMD. The displayed values are intended for demonstration of genome-browser concepts and are not a replacement for a full reference genome database.
-
-## ▶️ How to Run
-
-1. Open the repository.
-2. Open `index.html` in a web browser.
-3. Select a chromosome.
-4. Click a gene to inspect it.
-5. Use the search box to find a displayed gene.
-
-## 🎓 Project Purpose
-
-This project demonstrates the basic concepts behind genome browsers: genomic coordinates, chromosome regions, gene tracks, strand orientation, feature selection and simple genomic searching.
-
-## 👩‍🎓 Students
-
-**S. Veena Sri — SE25UMBT011**  
-**Vanshika — SE25UBIT066**
+## Biological data note
+The built-in gene names and coordinates are illustrative teaching data, not validated reference genome annotations. They must not be used for biological analysis. Real analysis requires a consistent reference assembly and verified annotation source.
