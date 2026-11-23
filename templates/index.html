@@ -2,41 +2,70 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Simple Genome Browser</title>
+<title>Genome Explorer | Interactive Genome Browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<header><h1>🧬 Simple Genome Browser</h1><p>Explore chromosome regions, gene positions and strand direction.</p></header>
+<header class="topbar">
+<a class="brand" href="{{ url_for('home') }}"><span class="brand-mark">G</span><span>Genome<span class="brand-light">Explorer</span><small>GENOMIC DATA WORKSPACE</small></span></a>
+<nav><a class="active" href="#browser">Genome browser</a><a href="#tools">Data tools</a><a href="#python-lab">Python lab</a></nav>
+<span class="status-pill"><i></i> Local workspace</span>
+</header>
 <main>
-<section class="controls">
-<form method="get"><label for="chromosome">Select chromosome</label>
-<select id="chromosome" name="chromosome">{% for chromosome in chromosomes %}
-<option value="{{ chromosome }}" {% if chromosome == selected_chromosome %}selected{% endif %}>Chromosome {{ chromosome }}</option>
-{% endfor %}</select><button type="submit">Load chromosome</button></form>
-<form method="post"><input type="hidden" name="chromosome" value="{{ selected_chromosome }}">
-<label for="gene_search">Search gene</label><input id="gene_search" name="gene_search" placeholder="e.g. GENE_A" value="{{ search_text }}">
-<button type="submit">Search</button></form>
-<form method="post" enctype="multipart/form-data"><input type="hidden" name="chromosome" value="{{ selected_chromosome }}">
-<label for="annotation_file">Upload GFF3 or BED</label><input id="annotation_file" name="annotation_file" type="file" accept=".gff,.gff3,.bed,.txt">
-<button type="submit">Load annotations</button></form>
+<section class="hero"><div class="hero-copy"><div class="eyebrow">BIOTECHNOLOGY · GENOMICS</div><h1>Explore the building<br>blocks of life.</h1><p>Navigate chromosome regions, inspect gene features and work with your own sequence and annotation files.</p><a class="hero-link" href="#browser">Open genome workspace <span>↗</span></a></div>
+<div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="dna"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div><div class="art-tag tag-top">A · T</div><div class="art-tag tag-bottom">G · C</div></div></section>
+
+{% if message %}<div class="alert {{ message_type }}"><span>●</span>{{ message }}</div>{% endif %}
+
+<section class="section-heading" id="browser"><div><div class="eyebrow">01 / VISUALIZATION</div><h2>Genome browser</h2><p>Choose a chromosome and inspect the positions of its annotated features.</p></div><span class="data-tag">Illustrative built-in dataset</span></section>
+<section class="workspace-card">
+<div class="workspace-toolbar"><div><label class="field-label" for="chromosome">CHROMOSOME</label><form method="get" class="chromosome-form"><select id="chromosome" name="chromosome">{% for chromosome in chromosomes %}<option value="{{ chromosome }}" {% if chromosome == selected_chromosome %}selected{% endif %}>Chromosome {{ chromosome }}</option>{% endfor %}</select><button class="button button-dark" type="submit">View chromosome</button></form></div>
+<div class="chromosome-summary"><span class="summary-number">{{ genes|length }}</span><span><strong>Features displayed</strong><small>Current chromosome</small></span></div></div>
+<div class="chromosome-title"><div><span class="eyebrow">CHROMOSOME {{ selected_chromosome }}</span><h3>Linear gene map</h3></div><span class="length-label">{{ "{:,}".format(chromosome_data.length) }} bp total length</span></div>
+<div class="map-area"><div class="axis"><span>1 bp</span><span>Chromosome coordinate</span><span>{{ "{:,}".format(chromosome_data.length) }} bp</span></div><div class="chromosome-line"><div class="centromere"></div></div>
+<div class="gene-track">{% for gene in genes %}<div class="gene-feature strand-{{ 'reverse' if gene.strand == '-' else 'forward' }} {% if selected_gene and selected_gene.name == gene.name %}is-selected{% endif %}" style="left: {{ gene.left }}%; width: {{ gene.width }}%;" title="{{ gene.name }} | {{ gene.start }}–{{ gene.end }} bp | {{ gene.strand }} strand"><span>{{ gene.name }}</span></div>{% endfor %}{% if not genes %}<p class="empty-track">No features available for this chromosome.</p>{% endif %}</div>
+<div class="track-legend"><span><i class="legend-forward"></i> Forward strand (+)</span><span><i class="legend-reverse"></i> Reverse strand (−)</span><span><i class="legend-selected"></i> Searched feature</span></div></div>
+<div class="detail-row"><form method="post" class="search-form"><input type="hidden" name="chromosome" value="{{ selected_chromosome }}"><label class="field-label" for="gene_search">FIND A GENE / FEATURE</label><div class="search-controls"><input id="gene_search" name="gene_search" value="{{ search_text }}" placeholder="Try GENE_A"><button class="button button-accent" type="submit">Search feature</button></div><small>Search is case-insensitive and checks the currently displayed records.</small></form>
+<div class="gene-detail"><div class="detail-kicker">FEATURE DETAILS</div>{% if selected_gene %}<h3>{{ selected_gene.name }}</h3><div class="detail-grid"><div><small>START</small><strong>{{ "{:,}".format(selected_gene.start) }} bp</strong></div><div><small>END</small><strong>{{ "{:,}".format(selected_gene.end) }} bp</strong></div><div><small>STRAND</small><strong>{{ selected_gene.strand }}</strong></div><div><small>TYPE</small><strong>{{ selected_gene.feature_type }}</strong></div></div><p class="function-text">{{ selected_gene.function }}</p>{% else %}<h3 class="muted-title">No feature selected</h3><p>Search for a feature name to view its genomic coordinates and strand.</p>{% endif %}</div></div>
 </section>
-{% if message %}<p class="message">{{ message }}</p>{% endif %}
-<section class="browser-card"><div class="browser-title"><div><h2>Chromosome {{ selected_chromosome }}</h2>
-<p>Length: {{ "{:,}".format(chromosome_data.length) }} bp</p></div><p>{{ genes|length }} displayed features</p></div>
-<div class="scale"><span>1 bp</span><span>{{ "{:,}".format(chromosome_data.length) }} bp</span></div>
-<div class="track">{% for gene in genes %}
-<div class="gene {% if gene.strand == '-' %}reverse{% else %}forward{% endif %} {% if selected_gene and selected_gene.name == gene.name %}highlight{% endif %}"
-style="left:{{ gene.left }}%;width:{{ gene.width }}%;" title="{{ gene.name }}: {{ gene.start }}–{{ gene.end }} ({{ gene.strand }} strand)">{{ gene.name }}</div>
-{% endfor %}</div>
-<div class="legend"><span class="forward-key">■</span> Forward (+) strand <span class="reverse-key">■</span> Reverse (-) strand</div>
+
+<section class="section-heading section-spaced" id="tools"><div><div class="eyebrow">02 / FILE ANALYSIS</div><h2>Work with your data</h2><p>Upload common bioinformatics file formats for basic parsing and inspection.</p></div></section>
+<section class="tool-grid">
+<article class="tool-card"><div class="tool-icon teal-icon">A</div><div class="tool-kicker">SEQUENCE INPUT</div><h3>FASTA sequence reader</h3><p>Read DNA, RNA or protein sequence records and calculate simple sequence statistics.</p>
+<form method="post" enctype="multipart/form-data" class="upload-form"><input type="hidden" name="chromosome" value="{{ selected_chromosome }}"><label class="file-drop"><span>＋</span><strong>Choose a FASTA file</strong><small>.fa · .fasta · .fna · .faa</small><input type="file" name="fasta_file" accept=".fa,.fasta,.fna,.faa" required></label><button class="button button-dark full-button" type="submit">Analyse sequence</button></form></article>
+<article class="tool-card"><div class="tool-icon purple-icon">⌖</div><div class="tool-kicker">ANNOTATION INPUT</div><h3>Genome annotation reader</h3><p>Read gene or feature coordinates from GFF3 and BED files for the selected chromosome.</p>
+<form method="post" enctype="multipart/form-data" class="upload-form"><input type="hidden" name="chromosome" value="{{ selected_chromosome }}"><label class="file-drop"><span>＋</span><strong>Choose an annotation file</strong><small>.gff · .gff3 · .bed</small><input type="file" name="annotation_file" accept=".gff,.gff3,.bed" required></label><button class="button button-dark full-button" type="submit">Load annotations</button></form></article>
 </section>
-<section class="info-grid"><article class="panel"><h2>Gene information</h2>
-{% if selected_gene %}<p><strong>Name:</strong> {{ selected_gene.name }}</p>
-<p><strong>Start:</strong> {{ "{:,}".format(selected_gene.start) }} bp</p><p><strong>End:</strong> {{ "{:,}".format(selected_gene.end) }} bp</p>
-<p><strong>Strand:</strong> {{ selected_gene.strand }}</p><p><strong>Function:</strong> {{ selected_gene.function }}</p>
-{% else %}<p>Search for a gene name to display its coordinates and details.</p>{% endif %}</article>
-<article class="panel"><h2>About this project</h2><p>Chromosome and gene data are stored in a Python dictionary in app.py.</p>
-<p>Python functions prepare gene positions and parse basic GFF3/BED annotation files.</p>
-<p class="notice">Built-in coordinates are illustrative teaching data, not validated reference annotations.</p></article></section>
-</main><footer>S. Veena Sri — SE25UMBT011 &nbsp; | &nbsp; Vanshika — SE25UBIT066</footer>
+
+{% if sequence_stats %}<section class="results-card"><div class="result-heading"><div><div class="eyebrow">FASTA ANALYSIS RESULT</div><h3>{{ uploaded_filename }}</h3></div><span class="success-chip">Parsed successfully</span></div>
+<div class="stats-grid"><div><small>SEQUENCES</small><strong>{{ sequence_stats.sequence_count }}</strong></div><div><small>TOTAL BASES / RESIDUES</small><strong>{{ "{:,}".format(sequence_stats.total_bases) }}</strong></div><div><small>GC CONTENT</small><strong>{{ sequence_stats.gc_percent }}%</strong></div><div><small>AMBIGUOUS SYMBOLS</small><strong>{{ sequence_stats.ambiguous_bases }}</strong></div></div>
+<h4>Sequence preview</h4>{% for sequence in sequence_preview %}<div class="sequence-preview"><strong>{{ sequence.name }}</strong><code>{{ sequence.sequence }}{% if sequence.sequence|length == 100 %}…{% endif %}</code></div>{% endfor %}</section>{% endif %}
+
+<section class="section-heading section-spaced" id="python-lab"><div><div class="eyebrow">03 / HOW IT WORKS</div><h2>Inside the Python workspace</h2><p>The application logic is organized into reusable Python data structures and functions.</p></div></section>
+<section class="python-grid">
+<article class="code-card"><div class="code-card-head"><span>01 · DATA STRUCTURE</span><span>app.py</span></div><h3>Dictionary</h3><p>A dictionary stores information as key-value pairs. Chromosome IDs are keys and chromosome records are values.</p><pre><code>GENOME_DATA = {
+  "1": {
+    "length": 1000000,
+    "genes": [...]
+  },
+  "2": {...},
+  "X": {...}
+}</code></pre></article>
+<article class="code-card"><div class="code-card-head"><span>02 · VARIABLES</span><span>app.py</span></div><h3>Variables</h3><p>Variables hold values while the application processes a request, such as the selected chromosome or search term.</p><pre><code>selected_chromosome = "1"
+search_text = request.values.get(
+    "gene_search", ""
+)
+chromosome_data = GENOME_DATA[
+    selected_chromosome
+]</code></pre></article>
+<article class="code-card"><div class="code-card-head"><span>03 · FUNCTIONS</span><span>app.py</span></div><h3>Reusable functions</h3><p>Functions divide the work into smaller tasks, making the code easier to read, test and maintain.</p><pre><code>parse_fasta(text)
+calculate_sequence_stats(sequences)
+parse_annotation(text, file_type)
+prepare_genes(genes, chromosome_length)</code></pre></article>
+</section>
+<section class="data-note"><strong>Data note</strong><p>The built-in chromosome labels, gene names and coordinates are illustrative teaching records. They are not verified reference-genome annotations and must not be used for biological interpretation. Uploaded annotation coordinates are displayed only when they match the selected chromosome.</p></section>
+</main>
+<footer><div class="footer-brand">GenomeExplorer</div><p>Biotechnology project · S. Veena Sri (SE25UMBT011) · Vanshika (SE25UBIT066)</p><span>Python · Flask · Bioinformatics</span></footer>
 </body></html>
