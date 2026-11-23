@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Genome Browser</title>
+<meta name="theme-color" content="#0f766e">
+<style>
+:root{--bg:#f3f5f2;--panel:#fff;--ink:#1d2b2a;--mute:#6b7a78;--line:#d5dcd9;--acc:#0f766e;--gene:#0f766e;--gene2:#b45309;--A:#2f9e44;--C:#1c7ed6;--G:#f08c00;--T:#e03131;--gc:#8fb9b3}
+@media (prefers-color-scheme:dark){:root{--bg:#101716;--panel:#18211f;--ink:#e4ecea;--mute:#8da09c;--line:#2c3a37;--acc:#2dd4bf;--gene:#2dd4bf;--gene2:#fbbf24;--gc:#3d6b65}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:22px 24px 10px;max-width:1200px;margin:auto}h1{font:600 28px Georgia,serif;margin:0}header p{margin:4px 0 0;color:var(--mute);max-width:70ch}
+main{max-width:1200px;margin:auto;padding:12px 24px 40px}.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+input,select,button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 10px}input[type=text]{width:190px}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.go{background:var(--acc);color:var(--bg);border-color:var(--acc);font-weight:600}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}.file{display:inline-flex;gap:6px;align-items:center;color:var(--mute);font-size:13px}.file input{max-width:200px;font-size:12px;padding:4px}.sp{flex:1}
+#wrap{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}canvas{display:block;width:100%;height:300px;cursor:grab;touch-action:none}canvas.drag{cursor:grabbing}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 2px;color:var(--mute);font-size:13px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+#info{margin-top:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-height:90px}#info h2{font:600 17px Georgia,serif;margin:0 0 4px}#info .meta{color:var(--mute);font-size:13px}
+#seqbox{font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;word-break:break-all;background:var(--bg);padding:8px;border-radius:6px;margin:8px 0;max-height:110px;overflow:auto}.st{color:var(--mute);font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<header><h1>Simple Genome Browser</h1><p>Explore a DNA sequence and its genes. Drag to pan, scroll to zoom, click a gene for details. Load your own FASTA and GFF3/BED files, or use the built-in demo genome.</p></header>
+<main>
+<div class="bar"><select id="chrom" aria-label="Chromosome"></select><input type="text" id="region" placeholder="e.g. 1000-2500" aria-label="Region"><button class="go" id="goBtn">Go</button><input type="text" id="search" placeholder="Search gene name" aria-label="Search gene"><button id="findBtn">Find</button><span class="sp"></span><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">&minus;</button><button id="reset">Reset</button></div>
+<div class="bar"><label class="file">FASTA <input type="file" id="fa" accept=".fa,.fasta,.fna,.txt"></label><label class="file">Genes (GFF3/BED) <input type="file" id="an" accept=".gff,.gff3,.bed,.txt"></label><button id="demo">Load demo genome</button></div>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div class="legend"><span><i style="background:var(--gene)"></i>Gene, + strand</span><span><i style="background:var(--gene2)"></i>Gene, - strand</span><span><i style="background:var(--gc)"></i>GC content</span><span><i style="background:var(--A)"></i>A</span><span><i style="background:var(--C)"></i>C</span><span><i style="background:var(--G)"></i>G</span><span><i style="background:var(--T)"></i>T</span></div>
+<div id="info"><h2>Nothing selected</h2><div class="meta">Click a gene in the browser to see its coordinates and sequence.</div></div><div class="st" id="status"></div>
+</main>
+<script>
+(function(){
+const $=id=>document.getElementById(id),cv=$('cv'),ctx=cv.getContext('2d');
+let data={},cur=null,view={s:1,e:1000},pre=null,hits=[],H=300;
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const comp={A:'T',T:'A',C:'G',G:'C',N:'N'},rc=s=>s.split('').reverse().map(c=>comp[c]||'N').join('');
+function demo(){const r=rng(42),L=24000;let s=[];for(let i=0;i<L;i++){const gcRich=(i>8000&&i<13000)?0.62:0.42,x=r();s.push(x<gcRich/2?'G':x<gcRich?'C':x<gcRich+(1-gcRich)/2?'A':'T')}
+const names=['geneA','dnaK','rpoB','lacZ','recA','gyrB','ftsZ','trpE','araC','hisG','thrA','pyrD'],genes=[];let pos=600;
+names.forEach((n,i)=>{const len=(300+Math.floor(r()*500))*3,st=pos,en=Math.min(st+len-1,L-50),strand=i%3===1?'-':'+',body=s.slice(st-1,en);
+if(strand==='+'){body.splice(0,3,'A','T','G');body.splice(-3,3,'T','A','A')}else{body.splice(0,3,'T','T','A');body.splice(-3,3,'C','A','T')}
+for(let k=0;k<body.length;k++)s[st-1+k]=body[k];genes.push({name:n,start:st,end:en,strand,type:'gene'});pos=en+400+Math.floor(r()*900)});
+return {'demo_chr1':{seq:s.join(''),genes}}}
+function parseFasta(t){const o={};let n=null,p=[];t.split(/\r?\n/).forEach(l=>{if(l[0]==='>'){if(n)o[n]={seq:p.join('').toUpperCase(),genes:[]};n=l.slice(1).trim().split(/\s+/)[0];p=[]}else if(n)p.push(l.trim())});if(n)o[n]={seq:p.join('').toUpperCase(),genes:[]};return o}
+function parseAnn(t){const out=[];t.split(/\r?\n/).forEach(l=>{if(!l||l[0]==='#'||l.startsWith('track')||l.startsWith('browser'))return;const f=l.split('\t');if(f.length<3)return;
+if(/^\d+$/.test(f[1])&&/^\d+$/.test(f[2]))out.push({chr:f[0],start:+f[1]+1,end:+f[2],name:f[3]||'feature',strand:f[5]==='-'?'-':'+',type:'bed'});
+else if(f.length>=8){if(!/^(gene|mRNA|CDS|ncRNA_gene|pseudogene)$/.test(f[2]))return;const a={};(f[8]||'').split(';').forEach(kv=>{const i=kv.indexOf('=');if(i>0)a[kv.slice(0,i)]=decodeURIComponent(kv.slice(i+1))});out.push({chr:f[0],start:+f[3],end:+f[4],name:a.Name||a.gene||a.ID||f[2],strand:f[6]==='-'?'-':'+',type:f[2]})}});return out}
+function attach(feats){let n=0;feats.forEach(f=>{const c=data[f.chr];if(c){c.genes.push(f);n++}});Object.values(data).forEach(c=>{const hasGene=c.genes.some(g=>g.type==='gene');if(hasGene)c.genes=c.genes.filter(g=>g.type!=='mRNA'&&g.type!=='CDS')});return n}
+function setData(d){data=d;const sel=$('chrom');sel.innerHTML='';Object.keys(d).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' ('+d[k].seq.length.toLocaleString()+' bp)';sel.appendChild(o)});chooseChrom(Object.keys(d)[0])}
+function chooseChrom(k){cur=k;$('chrom').value=k;const c=data[k];pre=new Int32Array(c.seq.length+1);for(let i=0;i<c.seq.length;i++){const ch=c.seq[i];pre[i+1]=pre[i]+(ch==='G'||ch==='C'?1:0)}rows(c);view={s:1,e:Math.min(c.seq.length,6000)};$('status').textContent=c.seq.length.toLocaleString()+' bp, '+c.genes.length+' genes loaded.';draw()}
+function rows(c){c.genes.sort((a,b)=>a.start-b.start);const ends=[];c.genes.forEach(g=>{let r=0;while(ends[r]!==undefined&&ends[r]>=g.start-40)r++;ends[r]=g.end;g.row=r})}
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function niceStep(bpp){const t=bpp*90,p=Math.pow(10,Math.floor(Math.log10(t)));for(const m of[1,2,5,10])if(m*p>=t)return m*p;return 10*p}
+function draw(){if(!cur)return;const c=data[cur],L=c.seq.length,dpr=window.devicePixelRatio||1,W=cv.clientWidth;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+const span=view.e-view.s+1,ppb=W/span,X=bp=>(bp-view.s)*ppb,mute=css('--mute'),line=css('--line');ctx.font='12px ui-monospace,Menlo,Consolas,monospace';ctx.textBaseline='middle';
+const step=niceStep(1/ppb);ctx.strokeStyle=line;ctx.fillStyle=mute;ctx.textAlign='left';ctx.beginPath();ctx.moveTo(0,32.5);ctx.lineTo(W,32.5);ctx.stroke();
+for(let p=Math.ceil(view.s/step)*step;p<=view.e;p+=step){const x=X(p);ctx.beginPath();ctx.moveTo(x,26);ctx.lineTo(x,33);ctx.stroke();ctx.fillText(p.toLocaleString(),x+4,14)}
+hits=[];const gy=46,rh=26;c.genes.forEach(g=>{if(g.end<view.s||g.start>view.e)return;const x1=Math.max(-5,X(g.start-0.5)),x2=Math.min(W+5,X(g.end+0.5)),y=gy+g.row*rh;if(y>H-150)return;const col=g.strand==='+'?css('--gene'):css('--gene2'),w=Math.max(2,x2-x1),a=Math.min(10,w/2);ctx.fillStyle=col;ctx.beginPath();
+if(g.strand==='+'){ctx.moveTo(x1,y);ctx.lineTo(x1+w-a,y);ctx.lineTo(x1+w,y+9);ctx.lineTo(x1+w-a,y+18);ctx.lineTo(x1,y+18)}else{ctx.moveTo(x1+a,y);ctx.lineTo(x1+w,y);ctx.lineTo(x1+w,y+18);ctx.lineTo(x1+a,y+18);ctx.lineTo(x1,y+9)}
+ctx.closePath();ctx.fill();if(w>g.name.length*7+24){ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(g.name,x1+w/2,y+9)}hits.push({g,x:x1,y,w,h:18})});
+const top=H-130,gh=50;ctx.fillStyle=mute;ctx.textAlign='left';ctx.fillText('GC content',6,top-10);ctx.strokeStyle=line;ctx.strokeRect(0.5,top+0.5,W-1,gh);ctx.fillStyle=css('--gc');const bw=3,win=Math.max(span/W*bw,40);
+for(let x=0;x<W;x+=bw){const mid=view.s+(x+bw/2)/ppb,a=Math.max(1,Math.round(mid-win/2)),b=Math.min(L,Math.round(mid+win/2));if(b<=a)continue;const f=(pre[b]-pre[a-1])/(b-a+1);ctx.fillRect(x,top+gh-f*gh,bw-0.5,f*gh)}
+ctx.strokeStyle=line;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(0,top+gh/2);ctx.lineTo(W,top+gh/2);ctx.stroke();ctx.setLineDash([]);
+const sy=H-60;ctx.fillStyle=mute;ctx.textAlign='left';ctx.fillText('Sequence',6,sy-10);if(ppb>=1.2){const cols={A:css('--A'),C:css('--C'),G:css('--G'),T:css('--T')},i0=Math.max(1,Math.floor(view.s)),i1=Math.min(L,Math.ceil(view.e));
+for(let i=i0;i<=i1;i++){const ch=c.seq[i-1],x=X(i-0.5);ctx.fillStyle=cols[ch]||mute;if(ppb>=9){ctx.textAlign='center';ctx.font='bold 14px ui-monospace,Menlo,Consolas,monospace';ctx.fillText(ch,x+ppb/2,sy+16)}else ctx.fillRect(x,sy+4,Math.max(1,ppb-0.4),24)}ctx.font='12px ui-monospace,Menlo,Consolas,monospace'}else{ctx.fillStyle=mute;ctx.textAlign='left';ctx.fillText('Zoom in to read individual bases.',6,sy+16)}$('region').placeholder=Math.round(view.s)+'-'+Math.round(view.e)}
+function clamp(){const L=data[cur].seq.length;let span=view.e-view.s;span=Math.max(20,Math.min(span,L-1));if(view.s<1)view.s=1;view.e=view.s+span;if(view.e>L){view.e=L;view.s=Math.max(1,L-span)}}
+function zoom(f,cx){const span=view.e-view.s,m=view.s+span*cx,ns=span*f;view.s=m-ns*cx;view.e=m+ns*(1-cx);clamp();draw()}
+let drag=null;cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,s:view.s,e:view.e,moved:0};cv.setPointerCapture(e.pointerId);cv.classList.add('drag')});
+cv.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x;drag.moved=Math.max(drag.moved,Math.abs(dx));const d=dx/cv.clientWidth*(drag.e-drag.s);view.s=drag.s-d;view.e=drag.e-d;clamp();draw()});
+cv.addEventListener('pointerup',e=>{cv.classList.remove('drag');if(drag&&drag.moved<4){const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,h=hits.find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h);if(h)showGene(h.g)}drag=null});
+cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientRect();zoom(e.deltaY>0?1.25:0.8,(e.clientX-r.left)/r.width)},{passive:false});
+$('zin').onclick=()=>zoom(0.5,0.5);$('zout').onclick=()=>zoom(2,0.5);$('reset').onclick=()=>{view={s:1,e:Math.min(data[cur].seq.length,6000)};draw()};
+function go(){const m=$('region').value.replace(/[ ,\s]/g,'').match(/^(?:.*:)?(\d+)-(\d+)$/);if(!m){$('status').textContent='Enter a region like 1000-2500.';return}view={s:+m[1],e:+m[2]};if(view.e<view.s)[view.s,view.e]=[view.e,view.s];clamp();draw()}
+$('goBtn').onclick=go;$('region').onkeydown=e=>{if(e.key==='Enter')go()};
+function find(){const q=$('search').value.trim().toLowerCase();if(!q)return;let hit=null,where=null;for(const k of Object.keys(data)){const g=data[k].genes.find(g=>g.name.toLowerCase().includes(q));if(g){hit=g;where=k;break}}
+if(!hit){$('status').textContent='No gene matches "'+q+'".';return}if(where!==cur)chooseChrom(where);const pad=Math.max(200,(hit.end-hit.start)*0.3);view={s:hit.start-pad,e:hit.end+pad};clamp();draw();showGene(hit)}
+$('findBtn').onclick=find;$('search').onkeydown=e=>{if(e.key==='Enter')find()};$('chrom').onchange=e=>chooseChrom(e.target.value);window.addEventListener('resize',draw);
+function showGene(g){const c=data[cur];let s=c.seq.slice(g.start-1,g.end);if(g.strand==='-')s=rc(s);const shown=s.length>600?s.slice(0,600)+'…':s,len=g.end-g.start+1;let gc=0;for(const ch of s)if(ch==='G'||ch==='C')gc++;
+$('info').innerHTML='<h2></h2><div class="meta"></div><div id="seqbox"></div><button id="cp">Copy sequence</button>';$('info').querySelector('h2').textContent=g.name;
+$('info').querySelector('.meta').textContent=cur+':'+g.start.toLocaleString()+'-'+g.end.toLocaleString()+' · '+g.strand+' strand · '+len.toLocaleString()+' bp · GC '+(len?(gc/len*100).toFixed(1):0)+'%';$('seqbox').textContent=shown;$('cp').onclick=()=>{navigator.clipboard.writeText(s).then(()=>$('cp').textContent='Copied')}}
+const readF=(f,cb)=>{const r=new FileReader();r.onload=()=>cb(r.result);r.readAsText(f)};
+$('fa').onchange=e=>{const f=e.target.files[0];if(!f)return;readF(f,t=>{const d=parseFasta(t);if(!Object.keys(d).length){$('status').textContent='That file does not look like FASTA (needs a > header line).';return}setData(d)})};
+$('an').onchange=e=>{const f=e.target.files[0];if(!f)return;if(!Object.keys(data).length||data.demo_chr1){$('status').textContent='Load a FASTA file first, then the gene file.';return}readF(f,t=>{const n=attach(parseAnn(t));rows(data[cur]);$('status').textContent=n?n+' features added. Names must match FASTA headers.':'No features matched the FASTA sequence names ('+Object.keys(data).join(', ')+').';draw()})};
+$('demo').onclick=()=>setData(demo());setData(demo());
+})();
+</script>
+</body>
+</html>
