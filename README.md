@@ -1,40 +1,51 @@
-# Simple Genome Browser — Python / Flask
+# Genome Explorer
 
-An educational genome browser built with a Python Flask backend.
+Genome Explorer is an educational genome-browser web application for exploring chromosome regions, viewing gene-feature coordinates and practising basic bioinformatics file handling.
 
-## Project members
+## Project team
 - S. Veena Sri — SE25UMBT011
 - Vanshika — SE25UBIT066
 
-## Technologies
-- Python 3 and Flask
-- HTML templates (Jinja)
+## Technology
+- Python 3
+- Flask
+- HTML templates with Jinja
 - CSS
 
 ## Features
-- Select chromosome 1, 2 or X
-- View chromosome length and gene positions
-- Search gene names and display coordinates/strand
-- Upload basic GFF3 or BED annotation files
-- Includes a Python FASTA parsing function
+- Interactive chromosome selector for the included teaching dataset
+- Linear visualization of feature positions and strand direction
+- Case-insensitive search for a displayed gene or feature
+- FASTA parser with sequence count, total length, GC percentage and ambiguous-symbol summary
+- Basic GFF3 and BED annotation parser for the selected chromosome
+- In-app explanation of the Python dictionary, variables and reusable functions
 
-## Files
-- app.py — Python data dictionary, Flask route, search, and parsing functions
-- requirements.txt — Python dependency list
-- templates/index.html — page template displayed by Flask
-- static/style.css — page styling
+## Project structure
+- app.py — application logic, data dictionary, Flask route and parsing/statistics functions
+- requirements.txt — Python dependencies
+- templates/index.html — application interface
+- templates/error.html — upload error page
+- static/style.css — interface styling
+- Procfile — production server start command
 
 ## Run locally
 1. Install Python 3.
-2. Open a terminal in this folder.
-3. Run: python -m pip install -r requirements.txt
-4. Run: python app.py
-5. Open http://127.0.0.1:5000 in a browser.
+2. Open a terminal in the project folder.
+3. Install dependencies: python -m pip install -r requirements.txt
+4. Start the application: python app.py
+5. Open http://127.0.0.1:5000 in your browser.
 
-On some computers, use python3 instead of python.
+If your system uses python3, replace python with python3.
 
-## Hosting note
-GitHub Pages only serves static files and cannot run a Python Flask server. This repository is now a Flask application. To publish a working live website, deploy it on a Python-compatible hosting service and configure it to install requirements.txt and start app.py.
+## Upload guidance
+- FASTA: .fa, .fasta, .fna or .faa
+- Annotation: .bed, .gff or .gff3
+- Maximum upload size: 5 MB
+- BED start coordinates are converted from zero-based to one-based for display.
+- GFF3 coordinates are already one-based.
 
-## Biological data note
-The built-in gene names and coordinates are illustrative teaching data, not validated reference genome annotations. They must not be used for biological analysis. Real analysis requires a consistent reference assembly and verified annotation source.
+## Important data limitation
+The built-in chromosome labels, gene names and coordinates are illustrative teaching records. They are not verified reference-genome annotations and must not be used for biological interpretation. For real analysis, use a consistent reference assembly and a trusted annotation file. The current parser supports a basic subset of BED/GFF3 and is intended for learning, not full standards compliance.
+
+## Deployment
+This application requires a Python-capable web host. GitHub Pages cannot run a Flask server. A live public deployment has not been configured by this repository.
