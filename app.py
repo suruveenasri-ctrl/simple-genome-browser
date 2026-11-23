@@ -1,187 +1,150 @@
-from flask import Flask, render_template, request, send_from_directory
-from werkzeug.utils import secure_filename
+import streamlit as st
+import pandas as pd
 
-app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
+st.set_page_config(page_title="Genome Browser", page_icon="🧬", layout="wide")
 
-# Dictionary: chromosome ID -> chromosome length and illustrative feature records.
-# Built-in records are teaching examples, not verified reference-genome data.
-GENOME_DATA = {
-    "1": {"length": 1_000_000, "genes": [
-        {"name":"GENE_A","start":85000,"end":145000,"strand":"+","feature_type":"gene","function":"Illustrative protein-coding feature"},
-        {"name":"GENE_B","start":260000,"end":335000,"strand":"-","feature_type":"gene","function":"Illustrative regulatory feature"},
-        {"name":"GENE_C","start":570000,"end":645000,"strand":"+","feature_type":"gene","function":"Illustrative metabolic feature"},
-        {"name":"GENE_D","start":790000,"end":875000,"strand":"-","feature_type":"gene","function":"Illustrative signalling feature"}]},
-    "2": {"length": 900_000, "genes": [
-        {"name":"GENE_E","start":70000,"end":160000,"strand":"+","feature_type":"gene","function":"Illustrative cellular feature"},
-        {"name":"GENE_F","start":310000,"end":390000,"strand":"-","feature_type":"gene","function":"Illustrative enzyme feature"},
-        {"name":"GENE_G","start":620000,"end":710000,"strand":"+","feature_type":"gene","function":"Illustrative transport feature"}]},
-    "X": {"length": 800_000, "genes": [
-        {"name":"GENE_X1","start":90000,"end":185000,"strand":"-","feature_type":"gene","function":"Illustrative X-chromosome feature"},
-        {"name":"GENE_X2","start":360000,"end":455000,"strand":"+","feature_type":"gene","function":"Illustrative regulatory feature"},
-        {"name":"GENE_X3","start":620000,"end":735000,"strand":"-","feature_type":"gene","function":"Illustrative structural feature"}]}
+# Dictionary: chromosome name -> chromosome length and gene records.
+GENOME = {
+    "Chromosome 1": {"length": 1000000, "genes": [
+        {"name": "geneA", "start": 85000, "end": 145000, "strand": "+", "type": "gene"},
+        {"name": "geneB", "start": 260000, "end": 335000, "strand": "-", "type": "gene"},
+        {"name": "geneC", "start": 570000, "end": 645000, "strand": "+", "type": "gene"},
+        {"name": "geneD", "start": 790000, "end": 875000, "strand": "-", "type": "gene"}]},
+    "Chromosome 2": {"length": 900000, "genes": [
+        {"name": "geneE", "start": 70000, "end": 160000, "strand": "+", "type": "gene"},
+        {"name": "geneF", "start": 310000, "end": 390000, "strand": "-", "type": "gene"},
+        {"name": "geneG", "start": 620000, "end": 710000, "strand": "+", "type": "gene"}]},
+    "Chromosome X": {"length": 800000, "genes": [
+        {"name": "geneX1", "start": 90000, "end": 185000, "strand": "-", "type": "gene"},
+        {"name": "geneX2", "start": 360000, "end": 455000, "strand": "+", "type": "gene"},
+        {"name": "geneX3", "start": 620000, "end": 735000, "strand": "-", "type": "gene"}]},
 }
 
-
-def normalize_chromosome(chromosome):
-    """Make chromosome labels such as chr1 and 1 comparable."""
-    return chromosome.strip().lower().removeprefix("chr").upper()
-
-
-def parse_fasta(text):
-    """Return a dictionary containing FASTA sequence IDs and sequence strings."""
-    sequences, current_name, parts = {}, None, []
-    for line in text.splitlines():
+def parse_fasta(file_text):
+    """Read FASTA records into a dictionary: sequence ID -> sequence."""
+    sequences = {}
+    current_id = None
+    sequence_parts = []
+    for line in file_text.splitlines():
         line = line.strip()
         if not line:
             continue
         if line.startswith(">"):
-            if current_name:
-                sequences[current_name] = "".join(parts).upper()
-            current_name, parts = line[1:].split()[0], []
-        elif current_name:
-            parts.append(line)
-    if current_name:
-        sequences[current_name] = "".join(parts).upper()
+            if current_id is not None:
+                sequences[current_id] = "".join(sequence_parts).upper()
+            current_id = line[1:].split()[0]
+            sequence_parts = []
+        elif current_id is not None:
+            sequence_parts.append(line)
+    if current_id is not None:
+        sequences[current_id] = "".join(sequence_parts).upper()
     return sequences
 
+def sequence_statistics(sequences):
+    """Calculate sequence count, total length and GC percentage."""
+    combined = "".join(sequences.values())
+    valid = [base for base in combined if base in "ACGTU"]
+    gc = combined.count("G") + combined.count("C")
+    gc_percent = round(gc / len(valid) * 100, 2) if valid else None
+    return len(sequences), len(combined), gc_percent
 
-def calculate_sequence_stats(sequences):
-    """Calculate sequence count, total length, GC percentage and ambiguous symbols."""
-    combined = "".join(sequences.values()).upper()
-    nucleotide_symbols = set("ACGTUNRYKMSWBDHV")
-    is_nucleotide = all(base in nucleotide_symbols for base in combined)
-    valid_bases = sum(combined.count(base) for base in "ACGTU")
-    gc_count = combined.count("G") + combined.count("C")
-    return {
-        "sequence_count": len(sequences),
-        "total_bases": len(combined),
-        "sequence_type": "Nucleotide" if is_nucleotide else "Protein or mixed",
-        "gc_percent": round(gc_count / valid_bases * 100, 2) if is_nucleotide and valid_bases else None,
-        "ambiguous_bases": sum(base not in "ACGTU" for base in combined) if is_nucleotide else None
-    }
-
-
-def parse_annotation(text, file_type):
-    """Parse basic gene records from BED or GFF3 annotation text."""
+def parse_annotation(file_text, file_type):
+    """Read basic gene features from a BED or GFF3 annotation file."""
     features = []
-    for line in text.splitlines():
-        if not line.strip() or line.startswith("#") or line.startswith("track") or line.startswith("browser"):
+    for line in file_text.splitlines():
+        if not line.strip() or line.startswith("#"):
             continue
-        columns = line.rstrip().split("\t")
+        fields = line.rstrip().split("\t")
         try:
-            if file_type == "bed" and len(columns) >= 3:
-                chromosome = normalize_chromosome(columns[0])
-                start, end = int(columns[1]) + 1, int(columns[2])
-                name = columns[3] if len(columns) > 3 and columns[3] else "BED_feature"
-                strand = columns[5] if len(columns) > 5 and columns[5] in ("+", "-") else "+"
-                feature_type = "BED feature"
-            elif file_type == "gff3" and len(columns) >= 9:
-                feature_type = columns[2]
-                if feature_type not in ("gene", "mRNA", "ncRNA_gene", "pseudogene"):
+            if file_type == "BED" and len(fields) >= 3:
+                chrom = fields[0].lower().removeprefix("chr")
+                start, end = int(fields[1]) + 1, int(fields[2])
+                name = fields[3] if len(fields) > 3 else "feature"
+                strand = fields[5] if len(fields) > 5 else "+"
+            elif file_type == "GFF3" and len(fields) >= 9:
+                if fields[2] not in ("gene", "mRNA", "ncRNA_gene"):
                     continue
-                chromosome = normalize_chromosome(columns[0])
-                start, end = int(columns[3]), int(columns[4])
-                strand = columns[6] if columns[6] in ("+", "-") else "+"
-                attributes = {}
-                for item in columns[8].split(";"):
-                    if "=" in item:
-                        key, value = item.split("=", 1)
-                        attributes[key] = value
-                name = attributes.get("Name", attributes.get("gene", attributes.get("ID", feature_type)))
+                chrom = fields[0].lower().removeprefix("chr")
+                start, end, strand = int(fields[3]), int(fields[4]), fields[6]
+                attrs = dict(item.split("=", 1) for item in fields[8].split(";") if "=" in item)
+                name = attrs.get("Name", attrs.get("ID", "feature"))
             else:
                 continue
-            if start >= 1 and end >= start:
-                features.append({"chromosome":chromosome,"name":name,"start":start,"end":end,
-                    "strand":strand,"feature_type":feature_type,"function":"Loaded from uploaded annotation file"})
+            features.append({"chromosome": chrom, "name": name, "start": start, "end": end, "strand": strand, "type": file_type})
         except (ValueError, IndexError):
             continue
     return features
 
+st.title("🧬 Simple Genome Browser")
+st.caption("A beginner-friendly genome browser built with Python.")
+with st.sidebar:
+    st.header("Genome selection")
+    chromosome = st.selectbox("Choose chromosome", list(GENOME.keys()))
+    st.markdown("---")
+    st.write("1. Select a chromosome.")
+    st.write("2. Search for a gene.")
+    st.write("3. Upload FASTA, BED or GFF3 files.")
 
-def prepare_genes(genes, chromosome_length):
-    """Convert genomic coordinates to percentages for the visual chromosome track."""
-    prepared = []
-    for gene in genes:
-        start = max(1, min(int(gene["start"]), chromosome_length))
-        end = max(start, min(int(gene["end"]), chromosome_length))
-        item = dict(gene)
-        item.update({"start":start,"end":end,"left":start/chromosome_length*100,
-                     "width":max((end-start)/chromosome_length*100, 1.2)})
-        prepared.append(item)
-    return sorted(prepared, key=lambda item: item["start"])
+chromosome_data = GENOME[chromosome]
+features = list(chromosome_data["genes"])
+a, b = st.columns(2)
+a.metric("Chromosome length", f'{chromosome_data["length"]:,} bp')
+b.metric("Sample gene records", len(features))
+st.info("Built-in chromosome labels and coordinates are fictional teaching examples, not real reference-genome data.")
 
+search = st.text_input("Search gene name", placeholder="For example: geneA")
+if search:
+    features = [gene for gene in features if search.lower() in gene["name"].lower()]
+    if not features:
+        st.warning("No matching gene found.")
 
-@app.route("/manifest.webmanifest")
-def manifest():
-    return send_from_directory("static", "manifest.webmanifest", mimetype="application/manifest+json")
+st.subheader("Gene features")
+if features:
+    table = pd.DataFrame(features)
+    st.dataframe(table, use_container_width=True, hide_index=True)
+    st.subheader("Gene coordinate overview")
+    chart = table.set_index("name")[["start", "end"]]
+    st.bar_chart(chart, use_container_width=True)
+else:
+    st.write("No features to display.")
 
+st.divider()
+st.subheader("Upload your annotation file")
+ann_file = st.file_uploader("Choose BED or GFF3", type=["bed", "gff", "gff3"])
+if ann_file:
+    kind = "BED" if ann_file.name.lower().endswith(".bed") else "GFF3"
+    uploaded = parse_annotation(ann_file.getvalue().decode("utf-8", errors="replace"), kind)
+    chrom_key = chromosome.lower().replace("chromosome ", "")
+    matching = [item for item in uploaded if item["chromosome"] == chrom_key]
+    st.write(f"Found {len(matching)} feature(s) for {chromosome}.")
+    if matching:
+        st.dataframe(pd.DataFrame(matching), use_container_width=True, hide_index=True)
+    else:
+        st.warning("No matching chromosome records. Check chromosome names in your file.")
 
-@app.route("/service-worker.js")
-def service_worker():
-    response = send_from_directory("static", "service-worker.js", mimetype="application/javascript")
-    response.headers["Service-Worker-Allowed"] = "/"
-    response.headers["Cache-Control"] = "no-cache"
-    return response
+st.divider()
+st.subheader("FASTA sequence analyser")
+fasta_file = st.file_uploader("Choose FASTA", type=["fa", "fasta", "fna", "faa"])
+if fasta_file:
+    sequence_dictionary = parse_fasta(fasta_file.getvalue().decode("utf-8", errors="replace"))
+    if sequence_dictionary:
+        count, total, gc = sequence_statistics(sequence_dictionary)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Sequences", count)
+        c2.metric("Total length", f"{total:,} bases / residues")
+        c3.metric("GC content", f"{gc}%" if gc is not None else "N/A")
+        preview = [{"Sequence ID": key, "Length": len(value), "First 80 characters": value[:80]} for key, value in sequence_dictionary.items()]
+        st.dataframe(pd.DataFrame(preview), use_container_width=True, hide_index=True)
+    else:
+        st.error("No FASTA records found. Each sequence must begin with a > header.")
 
-
-@app.route("/", methods=["GET", "POST"])
-def home():
-    selected_chromosome = request.values.get("chromosome", "1")
-    if selected_chromosome not in GENOME_DATA:
-        selected_chromosome = "1"
-    chromosome_data = GENOME_DATA[selected_chromosome]
-    genes = list(chromosome_data["genes"])
-    search_text = request.values.get("gene_search", "").strip()
-    message, message_type = "", "info"
-    sequence_stats, sequence_preview, uploaded_filename = None, [], ""
-
-    if request.method == "POST":
-        fasta_file = request.files.get("fasta_file")
-        if fasta_file and fasta_file.filename:
-            filename = secure_filename(fasta_file.filename)
-            if not filename.lower().endswith((".fa", ".fasta", ".fna", ".faa")):
-                message, message_type = "Upload a FASTA file (.fa, .fasta, .fna or .faa).", "error"
-            else:
-                sequences = parse_fasta(fasta_file.read().decode("utf-8", errors="replace"))
-                if sequences:
-                    sequence_stats = calculate_sequence_stats(sequences)
-                    sequence_preview = [{"name":name,"sequence":seq[:100]} for name,seq in list(sequences.items())[:5]]
-                    uploaded_filename = filename
-                    message, message_type = f"Read {len(sequences)} sequence record(s) from {filename}.", "success"
-                else:
-                    message, message_type = "No FASTA records found. Each record must begin with a > header.", "error"
-
-        annotation_file = request.files.get("annotation_file")
-        if annotation_file and annotation_file.filename:
-            filename = secure_filename(annotation_file.filename)
-            lower_name = filename.lower()
-            file_type = "bed" if lower_name.endswith(".bed") else ("gff3" if lower_name.endswith((".gff", ".gff3")) else "")
-            if not file_type:
-                message, message_type = "Upload a BED, GFF or GFF3 annotation file.", "error"
-            else:
-                features = parse_annotation(annotation_file.read().decode("utf-8", errors="replace"), file_type)
-                genes = [item for item in features if item["chromosome"] == normalize_chromosome(selected_chromosome)]
-                if genes:
-                    message, message_type = f"Loaded {len(genes)} feature(s) from {filename} for chromosome {selected_chromosome}.", "success"
-                else:
-                    message, message_type = f"No features for chromosome {selected_chromosome} were found in {filename}.", "error"
-
-    displayed_genes = prepare_genes(genes, chromosome_data["length"])
-    selected_gene = next((item for item in displayed_genes if item["name"].lower() == search_text.lower()), None) if search_text else None
-    if search_text and selected_gene is None:
-        message, message_type = f'Feature "{search_text}" was not found in the displayed records.', "error"
-
-    return render_template("index.html", chromosomes=GENOME_DATA, selected_chromosome=selected_chromosome,
-        chromosome_data=chromosome_data, genes=displayed_genes, selected_gene=selected_gene,
-        search_text=search_text, message=message, message_type=message_type,
-        sequence_stats=sequence_stats, sequence_preview=sequence_preview, uploaded_filename=uploaded_filename)
-
-
-@app.errorhandler(413)
-def file_too_large(_error):
-    return render_template("error.html", message="The selected file is larger than the 5 MB upload limit."), 413
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
+with st.expander("Understand the Python code (viva help)"):
+    st.markdown("""
+    - **GENOME** is a dictionary containing chromosome names, lengths and gene records.
+    - **Variables** such as chromosome, features and sequence_dictionary store values.
+    - **parse_fasta()** reads FASTA headers and joins sequence lines.
+    - **sequence_statistics()** calculates sequence count, total length and GC percentage.
+    - **parse_annotation()** reads basic BED and GFF3 gene coordinates.
+    - **Streamlit** creates the web interface directly from Python.
+    """)
+st.caption("Educational project • Python + Streamlit • Use verified reference data for real biological analysis.")
