@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple Genome Browser</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header><h1>🧬 Simple Genome Browser</h1><p>Explore chromosome regions, gene positions and strand direction.</p></header>
+<main>
+<section class="controls">
+<form method="get"><label for="chromosome">Select chromosome</label>
+<select id="chromosome" name="chromosome">{% for chromosome in chromosomes %}
+<option value="{{ chromosome }}" {% if chromosome == selected_chromosome %}selected{% endif %}>Chromosome {{ chromosome }}</option>
+{% endfor %}</select><button type="submit">Load chromosome</button></form>
+<form method="post"><input type="hidden" name="chromosome" value="{{ selected_chromosome }}">
+<label for="gene_search">Search gene</label><input id="gene_search" name="gene_search" placeholder="e.g. GENE_A" value="{{ search_text }}">
+<button type="submit">Search</button></form>
+<form method="post" enctype="multipart/form-data"><input type="hidden" name="chromosome" value="{{ selected_chromosome }}">
+<label for="annotation_file">Upload GFF3 or BED</label><input id="annotation_file" name="annotation_file" type="file" accept=".gff,.gff3,.bed,.txt">
+<button type="submit">Load annotations</button></form>
+</section>
+{% if message %}<p class="message">{{ message }}</p>{% endif %}
+<section class="browser-card"><div class="browser-title"><div><h2>Chromosome {{ selected_chromosome }}</h2>
+<p>Length: {{ "{:,}".format(chromosome_data.length) }} bp</p></div><p>{{ genes|length }} displayed features</p></div>
+<div class="scale"><span>1 bp</span><span>{{ "{:,}".format(chromosome_data.length) }} bp</span></div>
+<div class="track">{% for gene in genes %}
+<div class="gene {% if gene.strand == '-' %}reverse{% else %}forward{% endif %} {% if selected_gene and selected_gene.name == gene.name %}highlight{% endif %}"
+style="left:{{ gene.left }}%;width:{{ gene.width }}%;" title="{{ gene.name }}: {{ gene.start }}–{{ gene.end }} ({{ gene.strand }} strand)">{{ gene.name }}</div>
+{% endfor %}</div>
+<div class="legend"><span class="forward-key">■</span> Forward (+) strand <span class="reverse-key">■</span> Reverse (-) strand</div>
+</section>
+<section class="info-grid"><article class="panel"><h2>Gene information</h2>
+{% if selected_gene %}<p><strong>Name:</strong> {{ selected_gene.name }}</p>
+<p><strong>Start:</strong> {{ "{:,}".format(selected_gene.start) }} bp</p><p><strong>End:</strong> {{ "{:,}".format(selected_gene.end) }} bp</p>
+<p><strong>Strand:</strong> {{ selected_gene.strand }}</p><p><strong>Function:</strong> {{ selected_gene.function }}</p>
+{% else %}<p>Search for a gene name to display its coordinates and details.</p>{% endif %}</article>
+<article class="panel"><h2>About this project</h2><p>Chromosome and gene data are stored in a Python dictionary in app.py.</p>
+<p>Python functions prepare gene positions and parse basic GFF3/BED annotation files.</p>
+<p class="notice">Built-in coordinates are illustrative teaching data, not validated reference annotations.</p></article></section>
+</main><footer>S. Veena Sri — SE25UMBT011 &nbsp; | &nbsp; Vanshika — SE25UBIT066</footer>
+</body></html>
