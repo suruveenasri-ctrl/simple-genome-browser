@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#103f46"><meta name="description" content="Genome Explorer: an educational genome browser and bioinformatics file viewer."><link rel="manifest" href="{{ url_for('manifest') }}"><link rel="icon" href="{{ url_for('static', filename='icon.svg') }}" type="image/svg+xml"><link rel="apple-touch-icon" href="{{ url_for('static', filename='icon.svg') }}">
 <title>Genome Explorer | Interactive Genome Browser</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
 <header class="topbar">
 <a class="brand" href="{{ url_for('home') }}"><span class="brand-mark">G</span><span>Genome<span class="brand-light">Explorer</span><small>GENOMIC DATA WORKSPACE</small></span></a>
 <nav><a class="active" href="#browser">Genome browser</a><a href="#tools">Data tools</a><a href="#python-lab">Python lab</a></nav>
-<span class="status-pill"><i></i> Local workspace</span>
+<div class="header-actions"><button class="install-button" id="installApp" hidden>＋ Install app</button><span class="status-pill"><i></i> Genome workspace</span></div>
 </header>
 <main>
 <section class="hero"><div class="hero-copy"><div class="eyebrow">BIOTECHNOLOGY · GENOMICS</div><h1>Explore the building<br>blocks of life.</h1><p>Navigate chromosome regions, inspect gene features and work with your own sequence and annotation files.</p><a class="hero-link" href="#browser">Open genome workspace <span>↗</span></a></div>
@@ -68,4 +68,23 @@ prepare_genes(genes, chromosome_length)</code></pre></article>
 <section class="data-note"><strong>Data note</strong><p>The built-in chromosome labels, gene names and coordinates are illustrative teaching records. They are not verified reference-genome annotations and must not be used for biological interpretation. Uploaded annotation coordinates are displayed only when they match the selected chromosome.</p></section>
 </main>
 <footer><div class="footer-brand">GenomeExplorer</div><p>Biotechnology project · S. Veena Sri (SE25UMBT011) · Vanshika (SE25UBIT066)</p><span>Python · Flask · Bioinformatics</span></footer>
-</body></html>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker.js").catch(() => {}));
+}
+let installPrompt;
+const installButton = document.getElementById("installApp");
+window.addEventListener("beforeinstallprompt", event => {
+  event.preventDefault();
+  installPrompt = event;
+  installButton.hidden = false;
+});
+installButton.addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  installButton.hidden = true;
+});
+window.addEventListener("appinstalled", () => { installButton.hidden = true; });
+</script></body></html>
